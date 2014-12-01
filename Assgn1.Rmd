@@ -1,0 +1,126 @@
+Activity Monitoring
+========================
+load required packages:
+```{r, echo=FALSE,results='hide',warning=FALSE}
+required <- c('ggplot2','knitr')
+lapply(required,require,character.only=TRUE)
+```
+
+```{r setoptions, echo=FALSE, results='hide'}
+opts_chunk$set(cache=TRUE,warning=FALSE,message=FALSE)
+```
+
+Download and read data into R:
+```{r}
+fileurl <- 'http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip'
+if(!file.exists('mon.zip')) {download.file(fileurl, destfile = 'mon.zip')}
+downdate <- date()
+data <- read.csv(unz('mon.zip','activity.csv'))
+```
+Data was downloaded from link above on `r downdate`.
+
+##Data Cleaning
+```{r}
+str(data) #look at data
+data$date <- as.Date(as.character(data$date),format='%Y-%m-%d') #convert to Date format
+```
+
+##Data Analysis
+###Part1
+What is mean total number of steps taken per day?  
+* Historgram for total number of steps per day  
+* Mean and median of total number of steps per day 
+```{r}
+tsum<- tapply(data$steps,data$date,sum,na.rm=T)
+dfsum<-data.frame(tsum)
+p1<- ggplot(data=dfsum,aes(x=tsum))
+p1<- p1+geom_histogram()
+p1<- p1+labs(x='Total Number of Steps',y='Frequency')
+p1
+outmat <- matrix(nrow=length(unique(data$date)),ncol=2,dimnames = list(as.character(unique(data$date)),c('mean','median')))
+mm <- sapply(list('mean','median'),function(x){ tmp<-tapply(data$steps, data$date, x,na.rm=T); outmat[,x]<<- tmp})
+outmat #mean and median per day
+mean(dfsum$tsum) #mean of total number of steps for the entire dataset
+median(dfsum$tsum) #median of total number of steps for the entire dataset
+```
+
+###part2
+What is the average daily activity pattern?  
+* time series plot (interval vs mean number of steps)  
+* which time interval contains the maximum number of steps  
+```{r}
+t<-tapply(data$steps,data$interval,mean,na.rm=T)
+t[which.max(t)]
+df <-data.frame(t) #converting t to dataframe for plotting purposes
+df$inv <- as.numeric(rownames(df))
+p2 <-ggplot(data=df,aes(x=inv,y=t))
+p2<- p2+geom_line()
+p2<- p2+labs(x='Interval',y='average number of steps')
+p2
+```
+
+###Part3
+* total number of missing values  
+* impute the missing data  
+* redo Part1 with the new data set  
+* what is the impact of data filling?  
+
+```{r}
+sum(is.na(data)) #total number of missing data
+sapply(data, function(x) sum(is.na(x))) #by variable
+```
+All the missing data is in the first column, steps
+
+Impute the missing values with the average number of steps for the entire dataframe
+```{r}
+imp <- mean(data$steps,na.rm=T)
+data1 <- data #copy the original data
+data1[is.na(data),'steps'] <- imp
+```
+Double check to see if there are any missing data left:
+```{r}
+sum(is.na(data1))
+```
+
+Histogram:
+```{r}
+tsum1<- tapply(data1$steps,data1$date,sum,na.rm=T)
+dfsum1<-data.frame(tsum1)
+p3<- ggplot(data=dfsum1,aes(x=tsum1))
+p3<- p3+geom_histogram()
+p3<- p3+labs(x='Total Number of Steps',y='Frequency')
+p3
+```
+
+the peak of the plot corresponds to the mean of the dataset because all the missing values were replaced with the mean of the dataset.
+
+
+Mean and median:
+```{r}
+outmat1 <- matrix(nrow=length(unique(data1$date)),ncol=2,dimnames = list(as.character(unique(data1$date)),c('mean','median')))
+mm1 <- sapply(list('mean','median'),function(x){ tmp<-tapply(data1$steps, data1$date, x,na.rm=T); outmat1[,x]<<- tmp})
+outmat1 #mean and median per day
+mean(dfsum1$tsum1) #mean of total number of steps for the entire dataset
+median(dfsum1$tsum1) #median of total number of steps for the entire dataset
+```
+
+let's compare the summaries of the mean:
+```{r}
+summary(outmat[,'mean'])
+summary(outmat1[,'mean'])
+```
+As expected, the figures didn't change much since a simple imputation was done to fill in the missing data with the average number of total steps for the entire dataframe.
+
+###Part4
+Are there differences in activity patterns between weekdays and weekends?  
+* create a new variable for weekdays  
+* make a panel plot  
+
+```{r}
+data1$wday <- weekdays(data1$date)
+data1$wday <- ifelse(data1$wday %in% c('Saturday','Sunday'),'Weekend','Weekday')
+t1<-aggregate(steps~interval+wday,data=data1,mean,na.rm=T)
+p4 <- ggplot(data=t1,aes(x=interval,y=steps))
+p4 <- p4+geom_line()+facet_grid(wday~.)
+p4
+```
